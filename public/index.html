@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>表格管家</title>
+<style>
+  :root{
+    --ink:#0f172a; --ink2:#475569; --mut:#8592a6; --line:#e5eaf1; --line2:#f2f5f9;
+    --bg:#f4f6fa; --surface:#fff; --pri:#1d4ed8; --pri-soft:#eef3ff; --pri-d:#1a43bb;
+    --pos:#0b7a46; --neg:#c0392b; --warn:#b45309;
+    --r:10px; --r-sm:7px;
+    --sh:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  button,input,select{font:inherit;color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 18px 60px}
+
+  /* 头部 */
+  header{background:#fff;border-bottom:1px solid var(--line);margin-bottom:24px}
+  header .in{max-width:1080px;margin:0 auto;padding:20px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{margin:0;font-size:19px;letter-spacing:-.01em}
+  header .safe{margin-left:auto;font-size:12.5px;color:var(--pos);background:#eefaf3;border:1px solid #c8ecd8;
+    border-radius:20px;padding:5px 13px;font-weight:600}
+
+  /* 步骤卡 */
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:18px;overflow:hidden}
+  .step-h{display:flex;align-items:center;gap:11px;padding:14px 18px;border-bottom:1px solid var(--line);background:#fbfcfe}
+  .step-h .n{width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;font-size:12.5px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;flex:none}
+  .step-h h2{margin:0;font-size:15px}
+  .step-h .hint{margin-left:auto;font-size:12.5px;color:var(--mut)}
+  .step-b{padding:18px}
+
+  /* 上传区 */
+  .drop{border:2px dashed #cfd8e6;border-radius:var(--r);padding:30px;text-align:center;color:var(--mut);
+    cursor:pointer;transition:.15s;background:#fbfcfe}
+  .drop:hover,.drop.over{border-color:var(--pri);background:var(--pri-soft);color:var(--pri)}
+  .drop b{display:block;font-size:15px;color:var(--ink);margin-bottom:4px}
+  .drop.over b{color:var(--pri)}
+
+  .files{margin-top:14px;display:grid;gap:8px}
+  .file{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;background:#fff}
+  .file .ico{width:30px;height:30px;border-radius:7px;background:var(--pri-soft);color:var(--pri);display:flex;
+    align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none}
+  .file .meta{flex:1;min-width:0}
+  .file .meta b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file .meta span{font-size:11.5px;color:var(--mut)}
+  .file .pick{font-size:12px;color:var(--mut);cursor:pointer;padding:3px 9px;border:1px solid var(--line);border-radius:20px;background:#fff}
+  .file .pick:hover{border-color:var(--pri);color:var(--pri)}
+  .file.picked{border-color:var(--pri);background:var(--pri-soft)}
+  .file.picked .pick{background:var(--pri);border-color:var(--pri);color:#fff}
+  .file .x{border:0;background:transparent;color:var(--mut);cursor:pointer;font-size:17px;line-height:1;padding:2px 6px;border-radius:5px}
+  .file .x:hover{background:#fdecec;color:var(--neg)}
+
+  /* 任务选择 */
+  .tasks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px}
+  .task{border:1.5px solid var(--line);border-radius:var(--r);padding:13px 15px;cursor:pointer;transition:.13s;background:#fff}
+  .task:hover{border-color:#b9c6dc}
+  .task.on{border-color:var(--pri);background:var(--pri-soft);box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+  .task b{display:block;font-size:14.5px;margin-bottom:2px}
+  .task.on b{color:var(--pri)}
+  .task span{font-size:12.5px;color:var(--mut);line-height:1.5;display:block}
+
+  /* 参数表单 */
+  .form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .fld{display:grid;gap:5px}
+  .fld label{font-size:12.5px;font-weight:700;color:var(--ink2)}
+  .fld input,.fld select{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 11px;outline:none;background:#fff}
+  .fld input:focus,.fld select:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(29,78,216,.12)}
+  .fld .hint{font-size:11.5px;color:var(--mut)}
+  .chk{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink2);font-weight:600;cursor:pointer}
+  .chk input{accent-color:var(--pri);width:15px;height:15px}
+  .hidden{display:none !important}
+
+  /* 按钮 */
+  .btn{border:1px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:9px 16px;font-weight:600;
+    font-size:13.5px;cursor:pointer;box-shadow:var(--sh)}
+  .btn:hover{border-color:#b9c6dc}
+  .btn.p{background:var(--pri);border-color:var(--pri);color:#fff}
+  .btn.p:hover{background:var(--pri-d)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.big{padding:12px 26px;font-size:15px}
+
+  /* 结果 */
+  .verdict{display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:var(--r);font-weight:700;margin-bottom:14px;border:1px solid}
+  .verdict.ok{background:#f0fdf5;border-color:#c8ecd8;color:var(--pos)}
+  .verdict.bad{background:#fef4f4;border-color:#f2cfcc;color:var(--neg)}
+  .kvs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+  .kv{background:var(--line2);border-radius:var(--r-sm);padding:10px 13px}
+  .kv span{display:block;font-size:11.5px;color:var(--mut);font-weight:700}
+  .kv b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .dl{display:grid;gap:9px}
+  .dlrow{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 14px;background:#fff}
+  .dlrow .meta{flex:1;min-width:0}
+  .dlrow b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dlrow span{font-size:11.5px;color:var(--mut)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:7px 10px;border-bottom:1px solid var(--line2);text-align:left;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  th{background:#f8fafc;color:var(--ink2);font-weight:800;font-size:11.5px}
+  td.num{text-align:right}
+  .tw{overflow:auto;max-height:320px;border:1px solid var(--line);border-radius:var(--r-sm)}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+    border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);background:#1e293b;color:#fff;
+    padding:11px 20px;border-radius:9px;font-size:13.5px;font-weight:600;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast.bad{background:#b42318}
+  .empty{color:var(--mut);text-align:center;padding:26px;font-size:13.5px}
+  .warnbox{background:#fffbeb;border:1px solid #f6e0b0;color:var(--warn);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;margin-bottom:14px}
+</style>
+</head>
+<body>
+
+<header><div class="in">
+  <h1>表格管家</h1>
+  <span class="safe">🔒 完全本地运行 · 数据不出本机</span>
+</div></header>
+
+<div class="wrap">
+
+  <!-- 步骤 1 -->
+  <section class="step">
+    <div class="step-h"><span class="n">1</span><h2>上传表格</h2><span class="hint">支持 .xlsx / .csv / .tsv,单个最大 50MB</span></div>
+    <div class="step-b">
+      <div class="drop" id="drop">
+        <b>把表格拖到这里,或点击选择文件</b>
+        <span>文件只保存在你自己电脑上,不会上传到任何服务器</span>
+      </div>
+      <input type="file" id="picker" multiple accept=".xlsx,.xlsm,.csv,.tsv,.txt" class="hidden" />
+      <div class="files" id="files"></div>
+    </div>
+  </section>
+
+  <!-- 步骤 2 -->
+  <section class="step">
+    <div class="step-h"><span class="n">2</span><h2>选择要做的处理</h2><span class="hint" id="taskHint"></span></div>
+    <div class="step-b">
+      <div class="tasks" id="tasks"></div>
+      <div id="params" style="margin-top:18px"></div>
+    </div>
+  </section>
+
+  <!-- 步骤 3 -->
+  <section class="step" id="runStep" style="display:none">
+    <div class="step-h"><span class="n">3</span><h2>执行并下载结果</h2></div>
+    <div class="step-b">
+      <button class="btn p big" id="runBtn">开始处理</button>
+      <div id="result" style="margin-top:18px"></div>
+    </div>
+  </section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const size = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(2) + " MB";
+const toast = (m, bad) => { const t = $("toast"); t.textContent = m; t.className = "show" + (bad ? " bad" : ""); clearTimeout(t._t); t._t = setTimeout(() => (t.className = ""), 2800); };
+
+let FILES = [];          // {name,size,ext}
+let PICKED = [];         // 已选中(按点击顺序,用于 A/B)
+let TASK = "reconcile";
+let HEADERS = [];        // 当前文件表头(用于列名下拉)
+let HEADER_SRC = "";     // 表头来自哪个文件(显示给用户看)
+
+const TASKS = {
+  reconcile: { name: "对账", desc: "两张表逐行比对,找出不一致的地方", pick: 2, pickLabel: "左表A / 右表B" },
+  merge:     { name: "合并", desc: "多张表合成一张,表头自动对齐", pick: 0 },
+  split:     { name: "拆分", desc: "按某列的值拆成多个文件", pick: 1 },
+  clean:     { name: "清洗", desc: "去空格 · 删空行 · 去重 · 类型规范化", pick: 0 },
+  summarize: { name: "汇总", desc: "按列分组统计,自动加合计行", pick: 1 },
+};
+
+/* ---------------- API ---------------- */
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {});
+  const j = await res.json().catch(() => ({ ok: false, error: "返回不是 JSON" }));
+  if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
+  return j;
+}
+
+/* ---------------- 文件 ---------------- */
+async function upload(files) {
+  if (!files?.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f, f.name);
+  try {
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || "上传失败");
+    FILES = j.files;
+    if (j.rejected?.length) toast(`${j.rejected.length} 个文件被拒绝:${j.rejected.map((x) => x.name + "(" + x.reason + ")").join(", ")}`, true);
+    else toast(`已添加 ${j.saved.length} 个文件`);
+    PICKED = [];
+    renderFiles(); renderParams();
+    await loadHeaders();
+  } catch (e) { toast("上传失败:" + e.message, true); }
+}
+
+async function loadHeaders() {
+  HEADERS = []; HEADER_SRC = "";
+  const need = TASKS[TASK].pick;
+  // 需要选文件的:用已选中的那个;不需要的:用第一个文件
+  const target = need > 0 ? PICKED[0] : FILES[0]?.name;
+  if (!target) { renderParams(); return; }
+  try {
+    const r = await api("/api/preview", { name: target });
+    HEADERS = r.headers ?? [];
+    HEADER_SRC = target;
+  } catch { HEADERS = []; HEADER_SRC = ""; }
+  renderParams();
+}
+
+async function removeFile(name) {
+  // 简单做法:清空后重新上传剩余(文件不大,可接受)
+  toast("已从列表移除(文件仍在磁盘上)");
+  FILES = FILES.filter((f) => f.name !== name);
+  PICKED = PICKED.filter((n) => n !== name);
+  renderFiles(); renderParams();
+}
+
+/* ---------------- 渲染 ---------------- */
+function renderFiles() {
+  const box = $("files");
+  if (!FILES.length) { box.innerHTML = ""; return; }
+  const need = TASKS[TASK].pick;
+  box.innerHTML = FILES.map((f) => {
+    const idx = PICKED.indexOf(f.name);
+    const picked = idx >= 0;
+    const label = idx < 0 ? "选择" : (TASK === "reconcile" ? (idx === 0 ? "左表 A" : "右表 B") : "已选");
+    return `<div class="file ${picked ? "picked" : ""}">
+      <span class="ico">${esc((f.ext || "?").replace(".", "").slice(0, 4).toUpperCase())}</span>
+      <span class="meta"><b>${esc(f.name)}</b><span>${size(f.size)}</span></span>
+      ${need !== 0 ? `<span class="pick" data-pick="${esc(f.name)}">${label}</span>` : ""}
+      <button class="x" data-del="${esc(f.name)}" title="移除">×</button>
+    </div>`;
+  }).join("");
+  box.querySelectorAll("[data-pick]").forEach((el) => el.onclick = () => {
+    const n = el.dataset.pick;
+    const need = TASKS[TASK].pick;
+    const i = PICKED.indexOf(n);
+    if (i >= 0) PICKED.splice(i, 1);
+    else {
+      if (need === 1) PICKED = [n];
+      else if (need === 2) { if (PICKED.length >= 2) PICKED.shift(); PICKED.push(n); }
+      else PICKED.push(n);
+    }
+    renderFiles(); renderParams(); loadHeaders();
+  });
+  box.querySelectorAll("[data-del]").forEach((el) => el.onclick = () => removeFile(el.dataset.del));
+}
+
+const opts = (name, list, def) => `<select id="${name}">${list.map((h) => `<option ${h === def ? "selected" : ""}>${esc(h)}</option>`).join("")}</select>`;
+const colSelect = (id, placeholder) => HEADERS.length
+  ? opts(id, HEADERS)
+  : `<input id="${id}" placeholder="${esc(placeholder)}" />`;
+
+function renderParams() {
+  const p = $("params");
+  const t = TASKS[TASK];
+  $("taskHint").textContent = t.pick === 2 ? "需要选中 2 个文件" : t.pick === 1 ? "需要选中 1 个文件" : "";
+  $("runStep").style.display = "block";
+
+  const needCols = HEADERS.length
+    ? `<span class="hint">列名来自「${esc(HEADER_SRC)}」:${esc(HEADERS.slice(0, 6).join(" / "))}${HEADERS.length > 6 ? " …" : ""}</span>`
+    : (TASK === "reconcile" || TASK === "split" || TASK === "summarize"
+        ? `<span class="hint">先在上面选中文件,这里会自动变成列名下拉</span>`
+        : "");
+
+  const forms = {
+    reconcile: `
+      <div class="fld"><label>对账键(用哪一列判断"是同一条")</label>${colSelect("k1", "如 订单号")}${needCols}</div>
+      <div class="fld"><label>要比较的列(多个用逗号分隔,留空=比较所有同名列)</label><input id="cmp" placeholder="如 金额,状态" /></div>`,
+    merge: `
+      <div class="fld"><label>来源列名(记录每行来自哪个文件,留空=不加)</label><input id="src" value="来源文件" /></div>
+      <div class="fld"><label>按哪些列去重(留空=不去重)</label><input id="dd" placeholder="如 订单号" /></div>`,
+    split: `
+      <div class="fld"><label>按哪一列拆分</label>${colSelect("by", "如 地区")}${needCols}</div>
+      <div class="fld"><label>输出格式</label><select id="fmt"><option value=".xlsx">Excel (.xlsx)</option><option value=".csv">CSV (.csv)</option></select></div>`,
+    clean: `
+      <div class="fld"><label>按哪些列去重(留空=不去重)</label><input id="dd" placeholder="如 手机号" /></div>
+      <div class="fld"><label>规范化(格式:列名=number 或 列名=date,多个用逗号分隔)</label><input id="norm" placeholder="如 金额=number,日期=date" /></div>
+      <div class="fld" style="align-content:end"><label class="chk"><input type="checkbox" id="trim" checked /> 去掉首尾空格</label>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="dropEmpty" checked /> 删除空行</label></div>`,
+    summarize: `
+      <div class="fld"><label>按哪一列分组</label>${colSelect("grp", "如 状态")}${needCols}</div>
+      <div class="fld"><label>要统计的列 + 方式(每行一个,格式:列名,方式)</label>
+        <input id="aggs" placeholder="如 金额,sum" />
+        <span class="hint">方式:sum 求和 / avg 平均 / count 计数 / max / min / distinct 去重数。多行用分号分隔</span></div>`,
+  };
+  p.innerHTML = `<div class="form">${forms[TASK] ?? ""}</div>`;
+}
+
+function renderTasks() {
+  $("tasks").innerHTML = Object.entries(TASKS).map(([k, v]) => `
+    <div class="task ${k === TASK ? "on" : ""}" data-task="${k}">
+      <b>${v.name}</b><span>${v.desc}</span>
+    </div>`).join("");
+  $("tasks").querySelectorAll("[data-task]").forEach((el) => el.onclick = () => {
+    TASK = el.dataset.task;
+    PICKED = []; HEADERS = [];
+    renderTasks(); renderFiles(); renderParams(); loadHeaders();
+  });
+}
+
+/* ---------------- 执行 ---------------- */
+function buildOptions() {
+  const v = (id) => ($(id)?.value ?? "").trim();
+  const list = (s) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  if (TASK === "reconcile") {
+    const keys = list(v("k1"));
+    if (!keys.length) throw new Error("请填写对账键(如 订单号)");
+    const o = { keyColumns: keys };
+    if (v("cmp")) o.compareColumns = list(v("cmp"));
+    return o;
+  }
+  if (TASK === "merge") {
+    const o = {};
+    if (v("src")) o.sourceColumn = v("src");
+    if (v("dd")) o.dedupeBy = list(v("dd"));
+    return o;
+  }
+  if (TASK === "split") {
+    const by = list(v("by"));
+    if (!by.length) throw new Error("请填写按哪一列拆分");
+    return { by, format: v("fmt") || ".xlsx" };
+  }
+  if (TASK === "clean") {
+    const o = { trim: $("trim").checked, dropEmptyRows: $("dropEmpty").checked };
+    if (v("dd")) o.dedupeBy = list(v("dd"));
+    if (v("norm")) {
+      o.columns = {};
+      for (const pair of list(v("norm"))) {
+        const [c, ty] = pair.split("=").map((x) => x.trim());
+        if (c && ty) o.columns[c] = ty;
+      }
+    }
+    return o;
+  }
+  if (TASK === "summarize") {
+    const grp = list(v("grp"));
+    if (!grp.length) throw new Error("请填写分组列");
+    const aggs = list(v("aggs")).map((line) => {
+      const [column, op] = line.split(",").map((x) => x.trim());
+      if (!column || !op) throw new Error(`统计规则格式不对:「${line}」应为「列名,方式」`);
+      return { column, op, as: `${column}_${op}` };
+    });
+    if (!aggs.length) throw new Error("请至少填一条统计规则");
+    return { groupBy: grp, aggregations: aggs };
+  }
+  return {};
+}
+
+function checkReady() {
+  const need = TASKS[TASK].pick;
+  const files = TASK === "reconcile" ? PICKED : (need === 1 ? PICKED : FILES.map((f) => f.name));
+  if (need === 2 && PICKED.length < 2) throw new Error("请先选中两个文件(左表 A、右表 B)");
+  if (need === 1 && PICKED.length < 1) throw new Error("请先选中一个文件");
+  if (need === 0 && !files.length) throw new Error("请先上传文件");
+  return TASK === "merge" || TASK === "clean" ? FILES.map((f) => f.name) : files;
+}
+
+$("runBtn").onclick = async () => {
+  const btn = $("runBtn");
+  let files, options;
+  try { files = checkReady(); options = buildOptions(); }
+  catch (e) { toast(e.message, true); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>处理中…';
+  $("result").innerHTML = "";
+  try {
+    const r = await api("/api/run", { task: TASK, files, options });
+    renderResult(r);
+    toast(`处理完成,耗时 ${(r.ms / 1000).toFixed(2)} 秒`);
+  } catch (e) { toast("处理失败:" + e.message, true); $("result").innerHTML = `<div class="verdict bad">❌ ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = "开始处理";
+};
+
+function renderResult(r) {
+  const bad = /差异|不一致|失败/.test(JSON.stringify(r.summary ?? {})) && !/没有|0 处|完全对得上/.test(JSON.stringify(r.summary ?? {}));
+  const rows = Object.entries(r.summary ?? {}).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("");
+  const dls = (r.outputs ?? []).map((o) => `
+    <div class="dlrow">
+      <span class="ico" style="width:30px;height:30px;border-radius:7px;background:#eef3ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">${esc((o.name.split(".").pop() || "").slice(0, 4).toUpperCase())}</span>
+      <span class="meta"><b>${esc(o.name)}</b><span>${size(o.size)}</span></span>
+      <a class="btn p" href="/api/download?from=out&name=${encodeURIComponent(o.name)}">下载</a>
+    </div>`).join("");
+
+  let detail = "";
+  if (r.details?.length) {
+    const cols = [...new Set(r.details.flatMap((d) => Object.keys(d)))].filter((c) => !c.startsWith("_"));
+    detail = `<div style="margin-top:16px">
+      <div style="font-size:12.5px;font-weight:800;color:var(--ink2);margin-bottom:8px">明细(前 ${Math.min(r.details.length, 100)} 条)</div>
+      <div class="tw"><table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${r.details.slice(0, 100).map((d) => `<tr>${cols.map((c) => {
+        const v = d[c];
+        const cls = typeof v === "number" ? "num" : "";
+        const hit = /不一致|不存在|≠/.test(String(v ?? "")) ? ' style="color:#c0392b;font-weight:700"' : "";
+        return `<td class="${cls}"${hit}>${esc(v ?? "")}</td>`;
+      }).join("")}</tr>`).join("")}</tbody></table></div>
+    </div>`;
+  }
+
+  $("result").innerHTML = `
+    <div class="verdict ${bad ? "bad" : "ok"}">${bad ? "⚠" : "✅"} 处理完成(耗时 ${(r.ms / 1000).toFixed(2)} 秒)</div>
+    <div class="kvs">${rows}</div>
+    ${dls ? `<div class="dl">${dls}</div>` : '<div class="empty">这次没有产生文件</div>'}
+    ${detail}`;
+}
+
+/* ---------------- 事件 ---------------- */
+$("drop").onclick = () => $("picker").click();
+$("picker").onchange = (e) => { upload(e.target.files); e.target.value = ""; };
+["dragenter", "dragover"].forEach((ev) => $("drop").addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => $("drop").addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", (e) => upload(e.dataTransfer?.files));
+
+(async () => {
+  renderTasks(); renderParams();
+  try { const r = await api("/api/files"); FILES = r.files ?? []; renderFiles(); await loadHeaders(); } catch {}
+})();
+</script>
+</body>
+</html>

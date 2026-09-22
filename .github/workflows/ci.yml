@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    name: selftest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 零依赖:没有 npm install 这一步
+      - name: verify zero-dependency
+        shell: bash
+        run: |
+          if [ -f package.json ]; then echo "::error::package.json should not exist"; exit 1; fi
+          if [ -d node_modules ]; then echo "::error::node_modules should not exist"; exit 1; fi
+          echo "zero dependency OK"
+
+      - name: syntax check
+        shell: bash
+        run: |
+          for f in *.mjs lib/*.mjs; do node --check "$f" || exit 1; done
+          echo "syntax OK"
+
+      - name: run selftest
+        run: node selftest.mjs

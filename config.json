@@ -1,0 +1,17 @@
+{
+  "task": "reconcile",
+  "inputs": {
+    "a": "demo/订单系统导出.xlsx",
+    "b": "demo/财务台账.csv"
+  },
+  "output": "out/对账结果.xlsx",
+  "options": {
+    "keyColumns": [
+      "订单号"
+    ],
+    "compareColumns": [
+      "金额",
+      "状态"
+    ]
+  }
+}

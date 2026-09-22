@@ -1,0 +1,9 @@
+# 运行产物
+out/
+webdata/
+demo/
+_tmp/
+logs/
+dist/
+*.local.json
+_*.png
