@@ -1,18 +1,58 @@
 // 网页版自检:自己起一个服务(独立端口)跑完整流程,跑完自动关闭
 //   node selftest-webui.mjs
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { readXlsx } from "./lib/xlsx.mjs";
+import { readXlsx, writeXlsx } from "./lib/xlsx.mjs";
+import { toCsv } from "./lib/csv.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = 4299;                       // 独立端口,不打扰正在使用的 4220
 const B = `http://127.0.0.1:${PORT}`;
 
+/* ---------- 自造测试数据(不依赖 demo/,因为 demo/ 是运行时产物)---------- */
+const TMP = join(ROOT, "_tmp-webui");
+rmSync(TMP, { recursive: true, force: true });
+mkdirSync(TMP, { recursive: true });
+const F_ORDER = join(TMP, "订单系统导出.xlsx");
+const F_LEDGER = join(TMP, "财务台账.csv");
+const F_M1 = join(TMP, "月度报表-01月.csv");
+const F_M2 = join(TMP, "月度报表-02月.csv");
+const F_M3 = join(TMP, "月度报表-03月.csv");
+
+writeFileSync(F_ORDER, writeXlsx({ sheets: [{ name: "订单", rows: [
+  ["订单号", "客户", "金额", "日期", "状态"],
+  ["A001", "张三", 100.0, new Date(2026, 0, 5), "已付"],
+  ["A002", "李四", 250.5, new Date(2026, 0, 6), "已付"],
+  ["A003", "王五", 80.0, new Date(2026, 0, 7), "未付"],
+  ["A004", "赵六", 1200.0, new Date(2026, 0, 8), "已付"],
+  ["A005", "钱七", 300.0, new Date(2026, 0, 9), "已付"],
+  ["A006", "孙八", 45.5, new Date(2026, 0, 10), "已付"],
+  ["A007", "周九", 620.0, new Date(2026, 0, 11), "未付"],
+  ["A008", "吴十", 150.0, new Date(2026, 0, 12), "已付"],
+  ["A009", "郑一", 980.0, new Date(2026, 0, 13), "已付"],
+  ["A010", "王二", 75.0, new Date(2026, 0, 14), "已付"],
+  ["A011", "陈三", 430.0, new Date(2026, 0, 15), "已付"],
+  ["A012", "褚四", 88.0, new Date(2026, 0, 16), "未付"],
+] }] }));
+writeFileSync(F_LEDGER, toCsv([
+  ["订单号", "金额", "状态"],
+  ["A001", 100.0, "已付"], ["A002", 250.5, "已付"], ["A003", 80.0, "未付"],
+  ["A004", 1200.0, "已付"], ["A005", 300.0, "已付"], ["A006", 45.5, "已付"],
+  ["A008", 150.0, "已付"],
+  ["A009", 990.0, "已付"],   // 与订单表不一致
+  ["A011", 430.0, "已付"], ["A012", 88.0, "未付"],
+  ["A999", 500.0, "已付"],   // 只有台账有
+]), "utf8");
+[[F_M1, 5], [F_M2, 4], [F_M3, 3]].forEach(([path, n], mi) => {
+  const rows = Array.from({ length: n }, (_, i) => [`M${mi}${i}`, `客户${i}`, (i + 1) * 137.77, "2026-01-10", i % 2 ? "已付" : "未付"]);
+  writeFileSync(path, toCsv([["订单号", "客户", "金额", "日期", "状态"], ...rows]), "utf8");
+});
+
 rmSync(join(ROOT, "webdata"), { recursive: true, force: true });   // 干净起步
 const srv = spawn(process.execPath, [join(ROOT, "webui.mjs"), `--port=${PORT}`], { cwd: ROOT, stdio: "ignore" });
-const cleanup = () => { try { srv.kill(); } catch {} };
+const cleanup = () => { try { srv.kill(); } catch {} try { rmSync(TMP, { recursive: true, force: true }); } catch {} };
 process.on("exit", cleanup);
 process.on("SIGINT", () => { cleanup(); process.exit(1); });
 
@@ -35,7 +75,7 @@ const up = async (paths) => {
   const r = await fetch(`${B}/api/upload`, { method: "POST", body: fd });
   return r.json();
 };
-const r1 = await up(["demo/订单系统导出.xlsx", "demo/财务台账.csv"]);
+const r1 = await up([F_ORDER, F_LEDGER]);
 ok(r1.ok, "上传成功", r1.error);
 ok(r1.saved.length === 2, "保存 2 个文件", JSON.stringify(r1.saved?.map((s) => s.name)));
 ok(r1.saved.some((s) => s.name === "订单系统导出.xlsx"), "xlsx 文件名保留中文");
@@ -99,7 +139,7 @@ ok(!bad3.ok && /找不到列/.test(bad3.error), "列名不存在时给出可用�
 
 /* ---------- ⑧ 合并 + 拆分 + 汇总 ---------- */
 console.log("\n⑧ 其他任务");
-await up(["demo/月度报表-01月.csv", "demo/月度报表-02月.csv", "demo/月度报表-03月.csv"]);
+await up([F_M1, F_M2, F_M3]);
 const mg = await (await fetch(`${B}/api/run`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ task: "merge", files: ["月度报表-01月.csv", "月度报表-02月.csv", "月度报表-03月.csv"], options: { sourceColumn: "来源文件" } }) })).json();
 ok(mg.ok && mg.summary["合并后行数"] === 12, "合并 12 行", JSON.stringify(mg.summary));
 
